@@ -229,6 +229,7 @@ Wow, these hyperparameters don't work!
 
 1% Data Feature Unique Values
 
+```
 Train
 
 origin            2
@@ -248,9 +249,11 @@ end_date       7317
 train_type       **15**
 train_class       **5**
 fare              4
+```
 
 0.1% Data Feature Unique Values
 
+```
 Train
 
 origin            1
@@ -270,11 +273,31 @@ end_date       1933
 train_type       10
 train_class       4
 fare              4
+```
 
 - evidently origin and destination don't seem to matter, however train_class and train_type does
 - this makes sense since higher class and newer train models would cost more
 
-If I wanted to try a larger dataset, I'd need to remove samples with the newer train types and classes. Maybe next time!
+Even after matching these things `['train_class', 'train_type']`, there's a gap between train and val. Turns out the origin, destination, and fare are important as well. The gap lessened a lot when I matched all these things `['train_class', 'train_type', 'origin', 'destination', 'fare']`.
+
+- 0.401 val and 0.451 train
+
+2 hypotheses for the gap remain. Either the start_date and trip_time are being overfitted and there's a problem with their feature extraction or we can find better hyperparameters.
+
+- A quick hyperparameter search doesn't seem to solve anything so I suspect it's the time problem.
+
+Removing the start time gives strange results. It does seem like the model was overfitting on the start time.
+
+- 0.1% data - 0.49 train 0.43 val (makes no sense val is better than train!)
+- 1% data - 0.45 train 0.45 val (looks like we've regularized properly)
+- 10% data - 0.414 train 0.406 val (some lucky with val set, but this might be within variance)
+- 100% data - 0.265 train 0.257 val
+
+The only sensible explanation is on 0.1% (10,000 samples btw) the val set has some sort of bias and we're getting lucky with such a low score of 0.43. I'm sure if we evaluated on the 1% or 10% data validation set with model trained on 0.1% data, we wouldn't be getting such a good score.
+
+Otherwise the results look reasonable, we're getting improvements with more data.
+
+- It's notable how generalizable these hyperparameters are. The parameters we found on 0.1% of data transfered to 100% of data.
 
 ## Conclusions
 
@@ -291,3 +314,5 @@ If I wanted to try a larger dataset, I'd need to remove samples with the newer t
 11. The DART model works worse than XGBoost out of the box (even though dropout is set to 0), this implies there's some bug or some difference that in the DART implementation. In any case, DART is probably not useful.
 12. Adding trees generally doesn't overfit, it just takes longer to compute.
 13. **Watch out for classes that exist in categorical features of OOT val set but not train and vice versa!** This will make your train error look a lot higher than your val one and you won't know why.
+14. **Be careful with temporal features like time since start date** if model chooses to use these features, they won't generalize to test time.
+15. Hyperparameters are generalizable from a small subset of the dataset to the full dataset. E.g. the optimal hyperparameters I found on 0.1% of data transferred to 100% of data perfectly. This is useful because it was too slow to run HP search on the full dataset on my computer.

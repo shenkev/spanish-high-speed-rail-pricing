@@ -194,6 +194,88 @@ Conclusions
 6. Set L2 reg to about 30 (depends on magnitude of labels, mine were about 1-10 so maybe 3 for 0-1 labels)
 7. L1 reg is not very important, but helps find better L2 values
 
+## 8th Sweep (0.1% data)
+
+Going to take my  model to 1% data regime and see the results. I'll first run a dummy model to baseline the overfitting.
+
+- trees - 80
+- depth - 25
+- alpha - 1
+- lambda - 1
+- colsample_bynode - 1
+- eta - 0.1
+- subsample - 1
+
+Interestingly the overfitting is worse than before! I thought more data is supposed to help generalize.
+
+- 0.4 train rmse (better than 0.42 before) but 0.86 val rmse (worse than 0.635 before). I can't believe the val rmse got so much worse!
+
+Next I apply the previously best model.
+
+- trees - 80
+- depth - 25
+- alpha - 5
+- lambda - 20
+- colsample_bynode - 0.65
+- eta - 0.1
+- subsample - 0.8
+
+Wow, these hyperparameters don't work!
+
+- 0.879 val rmse
+- there may be some systematic error or false signal in the training set that's causing more overfitting when there's more training data
+- I suspect it's the "start_time" feature which captures temporal changes but it's not getting computed properly?...
+- turns out 0.1% data has 29 features and 1% data has 36 features. These extra features come from 1-hot classes that are seen in the later time periods but not earlier ones. This causes a problem between train and val because val has seen classes that train hasn't. If these classes are indicative of the label, then we're bound to overfit. I didn't notice this problem with 0.1% data because it was so little data that we didn't have so much disparity between train and val set!
+
+1% Data Feature Unique Values
+
+Train
+
+origin            2
+destination       4
+start_date     3453
+end_date       3966
+train_type       12
+train_class       4
+fare              4
+
+Val
+
+origin            **5**
+destination       **5**
+start_date     5786
+end_date       7317
+train_type       **15**
+train_class       **5**
+fare              4
+
+0.1% Data Feature Unique Values
+
+Train
+
+origin            1
+destination       3
+start_date     2657
+end_date       2996
+train_type       10
+train_class       4
+fare              4
+
+Val
+
+origin            **3**
+destination       **2**
+start_date     1814
+end_date       1933
+train_type       10
+train_class       4
+fare              4
+
+- evidently origin and destination don't seem to matter, however train_class and train_type does
+- this makes sense since higher class and newer train models would cost more
+
+If I wanted to try a larger dataset, I'd need to remove samples with the newer train types and classes. Maybe next time!
+
 ## Conclusions
 
 1. When you're doing in-time validation, train and val errors will be very closely coupled and it's hard to overfit or do poorly (e.g. even 400 depth and 400 trees is fine).
@@ -208,3 +290,4 @@ Conclusions
 10. Some guidelines on hyperparameters to use (obviously will depend on how much overfitting is happening): trees=80, depth=25, lr=0.1, L2 = 3x max y-value, colsample_bynode=0.5-0.8, subsample=0.7-0.8, L1=L2.
 11. The DART model works worse than XGBoost out of the box (even though dropout is set to 0), this implies there's some bug or some difference that in the DART implementation. In any case, DART is probably not useful.
 12. Adding trees generally doesn't overfit, it just takes longer to compute.
+13. **Watch out for classes that exist in categorical features of OOT val set but not train and vice versa!** This will make your train error look a lot higher than your val one and you won't know why.
